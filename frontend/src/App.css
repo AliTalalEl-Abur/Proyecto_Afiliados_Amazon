@@ -20,6 +20,7 @@
   max-width: 1200px;
   margin: 0 auto;
   text-align: center;
+  margin-bottom: 1.5rem;
 }
 
 .App-header h1 {
@@ -75,6 +76,41 @@
   50% {
     opacity: 0.5;
   }
+}
+
+/* Navigation tabs */
+.nav-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nav-tab {
+  padding: 12px 24px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #555;
+}
+
+.nav-tab:hover {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-2px);
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .App-main {
@@ -133,5 +169,14 @@
   .App-main {
     padding: 1rem;
   }
-}
-
+  
+  .nav-tabs {
+    gap: 8px;
+  }
+  
+  .nav-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 100px;
+  }

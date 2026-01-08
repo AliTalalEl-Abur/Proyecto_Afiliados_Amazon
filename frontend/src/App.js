@@ -2,10 +2,17 @@ import React, { useState } from 'react';
 import './App.css';
 import ArticleGenerator from './components/ArticleGenerator';
 import ArticleResult from './components/ArticleResult';
+import BatchGenerator from './components/BatchGenerator';
+import BatchResults from './components/BatchResults';
+import MetricsDashboard from './components/MetricsDashboard';
+import { batchPublish } from './services/api';
 
 function App() {
+  const [activeTab, setActiveTab] = useState('single');
   const [generatedArticle, setGeneratedArticle] = useState(null);
+  const [batchResults, setBatchResults] = useState(null);
   const [apiStatus, setApiStatus] = useState('checking');
+  const [publishingBatch, setPublishingBatch] = useState(false);
 
   // Verificar estado de la API al cargar
   React.useEffect(() => {
@@ -27,13 +34,44 @@ function App() {
 
   const handleArticleGenerated = (article) => {
     setGeneratedArticle(article);
-    // Scroll suave al resultado
     setTimeout(() => {
       document.querySelector('.article-result')?.scrollIntoView({ 
         behavior: 'smooth',
         block: 'start'
       });
     }, 100);
+  };
+
+  const handleBatchGenerated = (results) => {
+    setBatchResults(results);
+    setTimeout(() => {
+      document.querySelector('.batch-results')?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 100);
+  };
+
+  const handlePublishBatch = async (articles) => {
+    try {
+      setPublishingBatch(true);
+      const result = await batchPublish(articles);
+      
+      if (result.success) {
+        alert(`✅ ${result.published} artículos publicados exitosamente`);
+      } else {
+        alert(`⚠️ ${result.published} publicados, ${result.failed} fallaron`);
+      }
+    } catch (error) {
+      alert('Error al publicar: ' + error.message);
+    } finally {
+      setPublishingBatch(false);
+    }
+  };
+
+  const handleNewBatch = () => {
+    setBatchResults(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNewArticle = () => {
@@ -55,25 +93,80 @@ function App() {
             {apiStatus === 'offline' && '⚠️ API desconectada - Asegúrate de ejecutar el backend'}
           </div>
         </div>
+
+        {/* Navegación por pestañas */}
+        <nav className="nav-tabs">
+          <button 
+            className={`nav-tab ${activeTab === 'single' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('single');
+              setGeneratedArticle(null);
+            }}
+          >
+            ✏️ Artículo Individual
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'batch' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('batch');
+              setGeneratedArticle(null);
+            }}
+          >
+            🚀 Generación en Batch
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'metrics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('metrics')}
+          >
+            📊 Métricas
+          </button>
+        </nav>
       </header>
 
       <main className="App-main">
-        <ArticleGenerator onArticleGenerated={handleArticleGenerated} />
-        
-        {generatedArticle && (
+        {/* Tab: Artículo Individual */}
+        {activeTab === 'single' && (
           <>
-            <ArticleResult article={generatedArticle} />
-            <div className="new-article-section">
-              <button onClick={handleNewArticle} className="new-article-button">
-                ✨ Generar otro artículo
-              </button>
-            </div>
+            <ArticleGenerator onArticleGenerated={handleArticleGenerated} />
+            
+            {generatedArticle && (
+              <>
+                <ArticleResult article={generatedArticle} />
+                <div className="new-article-section">
+                  <button onClick={handleNewArticle} className="new-article-button">
+                    ✨ Generar otro artículo
+                  </button>
+                </div>
+              </>
+            )}
           </>
+        )}
+
+        {/* Tab: Batch */}
+        {activeTab === 'batch' && (
+          <>
+            <BatchGenerator onBatchGenerated={handleBatchGenerated} />
+            
+            {batchResults && (
+              <div className="batch-results">
+                <BatchResults 
+                  batchResults={batchResults}
+                  onPublishBatch={handlePublishBatch}
+                  onNewBatch={handleNewBatch}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Tab: Métricas */}
+        {activeTab === 'metrics' && (
+          <MetricsDashboard />
         )}
       </main>
 
       <footer className="App-footer">
-        <p>Powered by FastAPI + React + LangChain + GPT-4o</p>
+        <p>Powered by FastAPI + React + LangChain + GPT-4o + WordPress</p>
       </footer>
     </div>
   );

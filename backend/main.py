@@ -13,6 +13,8 @@ from agents.pdf_processor import PDFProcessor
 from agents.article_generator import ArticleGenerator
 from agents.affiliate_linker import AffiliateLinker
 from agents.wordpress_client import WordPressClient
+from agents.batch_generator import BatchArticleGenerator
+from agents.search_console_client import SearchConsoleClient
 
 # Cargar variables de entorno
 load_dotenv()
@@ -37,6 +39,8 @@ app.add_middleware(
 pdf_processor = PDFProcessor()
 article_generator = ArticleGenerator()
 affiliate_linker = AffiliateLinker()
+batch_generator = BatchArticleGenerator(pdf_processor, article_generator, affiliate_linker)
+search_console = SearchConsoleClient()
 
 # WordPress client (opcional, solo si está configurado)
 try:
@@ -92,8 +96,28 @@ class PublishToWordPressRequest(BaseModel):
                 "affiliate_links": [],
                 "error": "Error E03",
                 "model": "Echo Dot 4",
-        "wordpress_configured": wordpress_enabled,
                 "status": "draft"
+            }]
+        }
+    }
+
+
+class BatchGenerateRequest(BaseModel):
+    """Request para generar múltiples artículos"""
+    pdf_url: str = Field(..., description="URL del manual PDF")
+    model: str = Field(..., description="Modelo del dispositivo")
+    errors: List[str] = Field(..., description="Lista de errores a procesar")
+    device_type: Optional[str] = Field(None, description="Tipo de dispositivo (alexa, router, etc)")
+    use_common_errors: bool = Field(False, description="Usar errores comunes del tipo de dispositivo")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "pdf_url": "https://example.com/manual.pdf",
+                "model": "Echo Dot 4",
+                "errors": ["Error E01", "Error E02", "Error E03"],
+                "device_type": "alexa",
+                "use_common_errors": False
             }]
         }
     }
@@ -237,7 +261,9 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-         
+            detail=f"Error al procesar el archivo: {str(e)}"
+        )
+
 
 
 @app.post("/publish_to_wordpress")
@@ -281,8 +307,152 @@ async def publish_to_wordpress(request: PublishToWordPressRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Error al publicar en WordPress: {str(e)}"
-        )   detail=f"Error al procesar el archivo: {str(e)}"
         )
+
+
+@app.post("/batch_generate")
+async def batch_generate(request: BatchGenerateRequest):
+    """
+    Genera múltiples artículos para el mismo dispositivo
+    
+    Permite generar 5-10 artículos automáticamente para diferentes errores.
+    Ideal para crear contenido en batch para un dispositivo específico.
+    """
+    try:
+        # Usar errores comunes si se especifica
+        errors_to_process = request.errors
+        
+        if request.use_common_errors and request.device_type:
+            common_errors = batch_generator.get_common_errors(request.device_type)
+            if common_errors:
+                errors_to_process = common_errors[:10]  # Máximo 10
+        
+        if not errors_to_process:
+            raise HTTPException(
+                status_code=400,
+                detail="No se especificaron errores para procesar"
+            )
+        
+        # Limitar a 10 artículos por seguridad
+        if len(errors_to_process) > 10:
+            errors_to_process = errors_to_process[:10]
+        
+        # Generar artículos
+        result = await batch_generator.generate_multiple_articles(
+            pdf_url=request.pdf_url,
+            model=request.model,
+            errors=errors_to_process,
+            publish_status="draft"
+        )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en generación batch: {str(e)}"
+        )
+
+
+@app.post("/batch_publish")
+async def batch_publish(articles: List[Dict]):
+    """
+    Publica múltiples artículos en WordPress
+    
+    Toma una lista de artículos generados y los publica todos en WordPress.
+    """
+    try:
+        if not wordpress_enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="WordPress no está configurado"
+            )
+        
+        result = await batch_generator.batch_publish_to_wordpress(
+            articles=articles,
+            wordpress_client=wordpress_client
+        )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en publicación batch: {str(e)}"
+        )
+
+
+@app.get("/metrics/site")
+async def get_site_metrics(days: int = 30):
+    """
+    Obtiene métricas del sitio desde Google Search Console
+    
+    - Impresiones totales
+    - Clics totales
+    - CTR promedio
+    - Posición promedio
+    """
+    try:
+        result = await search_console.get_site_metrics(days_back=days)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener métricas: {str(e)}"
+        )
+
+
+@app.get("/metrics/page")
+async def get_page_metrics(url: str, days: int = 30):
+    """
+    Obtiene métricas de una página específica
+    
+    - url: URL completa de la página
+    - days: Días hacia atrás (default: 30)
+    """
+    try:
+        result = await search_console.get_page_performance(url, days_back=days)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener métricas de página: {str(e)}"
+        )
+
+
+@app.get("/device_types")
+async def get_device_types():
+    """
+    Devuelve tipos de dispositivos soportados y sus errores comunes
+    """
+    device_types = {
+        "alexa": {
+            "name": "Amazon Alexa / Echo",
+            "errors_count": 10,
+            "sample_errors": batch_generator.get_common_errors("alexa")[:3]
+        },
+        "router": {
+            "name": "Router WiFi",
+            "errors_count": 10,
+            "sample_errors": batch_generator.get_common_errors("router")[:3]
+        },
+        "smart_tv": {
+            "name": "Smart TV",
+            "errors_count": 10,
+            "sample_errors": batch_generator.get_common_errors("smart_tv")[:3]
+        },
+        "smart_home": {
+            "name": "Dispositivos Smart Home",
+            "errors_count": 10,
+            "sample_errors": batch_generator.get_common_errors("smart_home")[:3]
+        }
+    }
+    
+    return device_types
 
 
 if __name__ == "__main__":
