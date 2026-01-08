@@ -3,16 +3,23 @@ fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-dotenv==1.0.0
 
-# LangChain & AI
-langchain==0.1.0
-langchain-openai==0.0.2
+# LangChain & AI (versiones actualizadas compatibles)
+langchain==0.3.13
+langchain-openai==0.2.11
+langchain-community==0.3.13
 openai==1.10.0
+
+# PDF Processing
+pymupdf==1.23.8
+
+# Vector Store
+faiss-cpu==1.7.4
 
 # Database
 sqlalchemy==2.0.25
-supabase==2.3.0
 
 # Utilities
 pydantic==2.5.3
-httpx==0.26.0
+httpx>=0.24.0
 python-multipart==0.0.6
+requests==2.32.5
