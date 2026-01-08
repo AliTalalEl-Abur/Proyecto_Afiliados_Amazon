@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(__file__))
 from agents.pdf_processor import PDFProcessor
 from agents.article_generator import ArticleGenerator
 from agents.affiliate_linker import AffiliateLinker
+from agents.wordpress_client import WordPressClient
 
 # Cargar variables de entorno
 load_dotenv()
@@ -36,6 +37,14 @@ app.add_middleware(
 pdf_processor = PDFProcessor()
 article_generator = ArticleGenerator()
 affiliate_linker = AffiliateLinker()
+
+# WordPress client (opcional, solo si está configurado)
+try:
+    wordpress_client = WordPressClient()
+    wordpress_enabled = True
+except ValueError:
+    wordpress_client = None
+    wordpress_enabled = False
 
 
 # Modelos de datos
@@ -63,6 +72,31 @@ class ArticleResponse(BaseModel):
     content: Dict
     affiliate_links: List[Dict]
     metadata: Dict
+
+
+class PublishToWordPressRequest(BaseModel):
+    """Request para publicar artículo en WordPress"""
+    post_id: Optional[int] = Field(None, description="ID del post existente para actualizar")
+    title: str = Field(..., description="Título del artículo")
+    content: Dict = Field(..., description="Contenido estructurado del artículo")
+    affiliate_links: List[Dict] = Field(..., description="Enlaces de afiliado")
+    error: str = Field(..., description="Error procesado")
+    model: str = Field(..., description="Modelo del dispositivo")
+    status: str = Field("draft", description="'draft' o 'publish'")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "title": "Cómo solucionar el Error E03",
+                "content": {"introduction": "...", "error_meaning": "..."},
+                "affiliate_links": [],
+                "error": "Error E03",
+                "model": "Echo Dot 4",
+        "wordpress_configured": wordpress_enabled,
+                "status": "draft"
+            }]
+        }
+    }
 
 
 @app.get("/")
@@ -203,7 +237,51 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error al procesar el archivo: {str(e)}"
+         
+
+
+@app.post("/publish_to_wordpress")
+async def publish_to_wordpress(request: PublishToWordPressRequest):
+    """
+    Publica un artículo en WordPress como borrador o publicado
+    
+    Requiere configuración en .env:
+    - WORDPRESS_URL
+    - WORDPRESS_USER
+    - WORDPRESS_APP_PASSWORD
+    """
+    try:
+        if not wordpress_enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="WordPress no está configurado. Verifica las variables de entorno."
+            )
+        
+        # Publicar en WordPress
+        result = await wordpress_client.publish_article(
+            title=request.title,
+            article_content=request.content,
+            affiliate_links=request.affiliate_links,
+            error=request.error,
+            model=request.model,
+            status=request.status
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result["error"]
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al publicar en WordPress: {str(e)}"
+        )   detail=f"Error al procesar el archivo: {str(e)}"
         )
 
 

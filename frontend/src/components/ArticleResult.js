@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import './ArticleResult.css';
+import PublishToWordPress from './PublishToWordPress';
 
 const ArticleResult = ({ article }) => {
   const [copied, setCopied] = useState(false);
   const [copyFormat, setCopyFormat] = useState('html'); // 'html' o 'markdown'
+  const [showWordPressModal, setShowWordPressModal] = useState(false);
 
   if (!article) return null;
 
@@ -176,6 +178,14 @@ const ArticleResult = ({ article }) => {
           >
             💾 Descargar
           </button>
+          
+          <button
+            onClick={() => setShowWordPressModal(true)}
+            className="action-button wordpress"
+            title="Publicar en WordPress"
+          >
+            📝 WordPress
+          </button>
         </div>
       </div>
 
@@ -252,7 +262,15 @@ const ArticleResult = ({ article }) => {
         {metadata && (
           <div className="article-metadata">
             <h3>Información del proceso</h3>
-            <ul>
+            
+
+      {/* Modal de WordPress */}
+      {showWordPressModal && (
+        <PublishToWordPress
+          article={article}
+          onClose={() => setShowWordPressModal(false)}
+        />
+      )}<ul>
               <li><strong>Modelo:</strong> {metadata.model}</li>
               <li><strong>Error:</strong> {metadata.error}</li>
               <li><strong>Chunks procesados:</strong> {metadata.pdf_chunks}</li>

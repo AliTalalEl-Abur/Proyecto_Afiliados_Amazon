@@ -80,6 +80,15 @@
   background: #8e44ad;
 }
 
+.action-button.wordpress {
+  background: #0073aa;
+  color: white;
+}
+
+.action-button.wordpress:hover {
+  background: #005a87;
+}
+
 .article-preview {
   background: white;
   border-radius: 12px;
